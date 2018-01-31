@@ -117,6 +117,7 @@ class Controller(NotifierMixin, _base.Controller):
 @Controller._receiver
 class Listener(ListenerMixin, _base.Listener):
     #: The Windows hook ID for low level mouse events, ``WH_MOUSE_LL``
+    __GetCursorPos = windll.user32.GetCursorPos
     _EVENTS = 14
 
     WM_LBUTTONDOWN = 0x0201
@@ -173,19 +174,23 @@ class Listener(ListenerMixin, _base.Listener):
             return
 
         data = ctypes.cast(lpdata, self._LPMSLLHOOKSTRUCT).contents
-
+        point = wintypes.POINT()
+        # it retrieves the screen pos which setpos can't correctly handle. 
+        # better fix should replace the setpos call
+        self.__GetCursorPos(ctypes.byref(point))
+            
         # Suppress further propagation of the event if it is filtered
         if self._event_filter(msg, data) is False:
             return
 
         if msg == self.WM_MOUSEMOVE:
-            self.on_move(data.pt.x, data.pt.y)
+            self.on_move(point.x, point.y)
 
         elif msg in self.CLICK_BUTTONS:
             button, pressed = self.CLICK_BUTTONS[msg]
-            self.on_click(data.pt.x, data.pt.y, button, pressed)
+            self.on_click(point.x, point.y, button, pressed)
 
         elif msg in self.SCROLL_BUTTONS:
             mx, my = self.SCROLL_BUTTONS[msg]
             dd = wintypes.SHORT(data.mouseData >> 16).value // self._WHEEL_DELTA
-            self.on_scroll(data.pt.x, data.pt.y, dd * mx, dd * my)
+            self.on_scroll(point.x, point.y, dd * mx, dd * my)
